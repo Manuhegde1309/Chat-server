@@ -4,32 +4,25 @@ import ssl
 import os
 
 context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-
 host = 'localhost'
 context.load_verify_locations('ssl.pem')
-# Choosing Nickname
+
 nickname = input("Choose your nickname: ")
 if nickname == 'admin':
-    passwd = input("enter password : ")
-# Connecting To Server
+    passwd = input("Enter password: ")
 
 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
 client = context.wrap_socket(client, server_hostname=host)
 client.connect((host, 55557))
 
-stopThread = False
-
+stop_thread = False
 
 def receive():
+    global stop_thread
     while True:
-        global stopThread
-        if stopThread:
+        if stop_thread:
             break
         try:
-            # Receive Message From Server
-            # If 'MANU' Send Nickname
-            
             message = client.recv(1024).decode('ascii')
             if message == 'MANU':
                 client.send(nickname.encode('ascii'))
@@ -37,41 +30,40 @@ def receive():
                 if next_message == 'PASS':
                     client.send(passwd.encode('ascii'))
                     if client.recv(1024).decode('ascii') == 'WRONG':
-                        print('wrong password,press ctrl C to exit')
-                        stopThread = True
+                        print('Wrong password, press Ctrl+C to exit')
+                        stop_thread = True
                 elif next_message == 'BAN':
-                    print('Connection refused due to ban ,press ctrl c to exit')
+                    print('Connection refused due to ban, press Ctrl+C to exit')
                     client.close()
-                    stopThread = True
+                    stop_thread = True
                 elif next_message == 'DUPLICATE':
-                    print('this user already exists ,press control C to stop execution')
+                    print('This user already exists, press Ctrl+C to stop execution')
                     client.close()
-                    stopThread = True
-                elif next_message == 'MEMBERS':
-                    print('are the members') 
+                    stop_thread = True
             else:
                 print(message)
-                if message.startswith("File received at:"):
-                    pass
         except:
-            # Close Connection When Error
             print("An error occurred!")
             client.close()
             break
 
-# Sending Messages To Server
 def write():
+    global stop_thread
     while True:
-        if stopThread:
+        if stop_thread:
             break
-
         message = input()
-
-        if message.startswith('/'):
-            command_parts=message.split(" ")
-            if len(command_parts)>=1:
-                if command_parts[0]=='/file':
-                    file_path=command_parts[1].strip()
+        if message == 'q':
+            client.send(message.encode('ascii'))
+            print("You have left the chat.")
+            client.close()
+            stop_thread = True
+            break
+        elif message.startswith('/'):
+            command_parts = message.split(" ")
+            if len(command_parts) >= 1:
+                if command_parts[0] == '/file':
+                    file_path = command_parts[1].strip()
                     if os.path.exists(file_path):
                         client.send(f'Filename {file_path}'.encode('ascii'))
                     else:
@@ -84,7 +76,7 @@ def write():
                     elif command_parts[0] == '/members':
                         client.send(f'MEMBERS'.encode('ascii'))
                     else:
-                        print(f'invalid command')
+                        print("Invalid command")
                 else:
                     print("You are not admin")
             else:
@@ -92,15 +84,12 @@ def write():
         else:
             client.send(f'{nickname}: {message}'.encode('ascii'))
 
-
-
-# Starting Threads For Listening And Writing
 receive_thread = threading.Thread(target=receive)
 receive_thread.start()
 
 write_thread = threading.Thread(target=write)
-
 write_thread.start()
 
 receive_thread.join()
 write_thread.join()
+
